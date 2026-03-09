@@ -36,3 +36,19 @@ When a wallet's **LP-backed collateral** loses value, the Reactive Contract dete
 2. Repay the associated debt automatically  
 
 Liquidation fees captured by the hook are **redistributed to pool LPs as an additional yield incentive**, making the system **self-sustaining and aligned with liquidity providers**.
+
+## Resources
+- https://dev.reactive.network/
+- https://dev.reactive.network/reactive-contracts
+- https://github.com/Reactive-Network/reactive-smart-contract-demos
+
+# Note
+### How to think about using Reactive Network
+
+Here’s how Reactive Network works: Reactive Smart Contracts (RSCs) let you monitor on-chain events on chain A and react to those events by triggering callbacks (submitting transactions) on another chain B (or chain A). This enables cross-chain automation and modularity, where your logic can respond to activity in existing smart contracts without modifying them. We believe that our technology will be especially useful when combined with Uniswap Hooks, supercharging them with time-based or conditional automations and cross-chain functionality.
+
+To add reactivity to your smart contract setup, you will just need to deploy two additional Solidity smart contracts: on Reactive Network and on the destination chain.
+
+### Hookathon Judging Guidance
+
+For our prize track, we’ll be looking for the most innovative hooks that implement Reactive Smart Contracts correctly.
