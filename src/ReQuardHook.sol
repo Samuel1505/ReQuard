@@ -1,24 +1,38 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {IHooks, IPoolManager} from "./interfaces/IUniswapV4Hooks.sol";
+import {ReQuardLending} from "./ReQuardLending.sol";
+import {IERC20} from "forge-std/interfaces/IERC20.sol";
+
+/// @dev BalanceDelta represents the change in token balances after a swap or modifyLiquidity
+struct BalanceDelta {
+    int256 amount0;
+    int256 amount1;
+}
+
 /// @title ReQuardHook
-/// @notice Simplified Uniswap V4-style hook that:
-///         - tracks LP-backed collateral positions
-///         - exposes a liquidation entrypoint that can be called by a
-///           destination contract triggered by Reactive Network.
-///
-/// NOTE: This file intentionally abstracts away the real Uniswap V4 hook
-/// interfaces so that we can focus on the Reactive Network integration
-/// pattern. In a full implementation you would:
-///   - import the official Uniswap V4 hook interface
-///   - wire this hook into a real V4 pool
-///   - replace the stubbed unwind/repay logic with actual AMM + lending ops.
-contract ReQuardHook {
-    /// @dev Basic representation of a collateralized LP position.
-    struct Position {
+/// @notice Uniswap V4 hook that:
+///         - Tracks LP positions used as collateral for lending
+///         - Monitors position health factors
+///         - Enables autonomous liquidation via Reactive Network
+///         - Redistributes liquidation fees to LPs
+contract ReQuardHook is IHooks {
+    /// @dev Hook flags: enable beforeModifyPosition and afterModifyPosition callbacks
+    uint256 public constant HOOK_PERMISSIONS = 
+        (1 << 0) | // beforeModifyPosition
+        (1 << 1);  // afterModifyPosition
+
+    /// @dev Represents an LP position tracked by this hook
+    struct LPPosition {
         address owner;
-        uint256 collateralValue; // e.g. in some unit (USD or token-denominated)
-        uint256 debtValue;
+        IPoolManager.PoolKey poolKey;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        bytes32 salt;
+        uint256 collateralValue; // Current USD value of the LP position
+        bytes32 lendingPositionId; // Associated lending position ID
         bool liquidated;
     }
 
@@ -44,88 +58,238 @@ contract ReQuardHook {
         uint256 liquidationFee
     );
 
-    mapping(bytes32 => Position) public positions;
+    /// @notice Emitted when an LP position is modified
+    event LPPositionModified(
+        bytes32 indexed positionId,
+        address indexed owner,
+        uint128 liquidity,
+        uint256 collateralValue
+    );
 
-    /// @dev Address of the destination liquidation executor contract that is
-    ///      authorized to call `liquidatePosition`. This contract will be the
-    ///      one that Reactive Network calls into.
+    /// @dev PoolManager instance
+    IPoolManager public immutable poolManager;
+
+    /// @dev Lending protocol instance
+    ReQuardLending public immutable lending;
+
+    /// @dev Address of the destination liquidation executor contract
     address public liquidationExecutor;
+
+    /// @dev Mapping from position ID to LP position data
+    mapping(bytes32 => LPPosition) public lpPositions;
+
+    /// @dev Mapping from (owner, poolKey, tickLower, tickUpper, salt) to positionId
+    mapping(address => mapping(bytes32 => bytes32)) public positionIds;
+
+    /// @dev Liquidation fee in basis points (50 = 0.5%)
+    uint256 public constant LIQUIDATION_FEE_BPS = 50;
+
+    /// @dev Accumulated liquidation fees to be redistributed to LPs
+    uint256 public accumulatedFees;
 
     modifier onlyLiquidationExecutor() {
         require(msg.sender == liquidationExecutor, "not executor");
         _;
     }
 
-    constructor(address _liquidationExecutor) {
+    modifier onlyPoolManager() {
+        require(msg.sender == address(poolManager), "not pool manager");
+        _;
+    }
+
+    constructor(
+        address _poolManager,
+        address _lending,
+        address _liquidationExecutor
+    ) {
+        poolManager = IPoolManager(_poolManager);
+        lending = ReQuardLending(_lending);
         liquidationExecutor = _liquidationExecutor;
     }
 
-    /// @notice Hook-style function to register or update an LP-backed position.
-    /// @dev In a real Uniswap V4 hook this would be invoked as part of the
-    ///      swap/mint/burn workflow.
-    function upsertPosition(
-        bytes32 positionId,
+    /// @notice Returns hook permissions flags
+    function getHookPermissions() external pure returns (uint256) {
+        return HOOK_PERMISSIONS;
+    }
+
+    /// @notice Called before modifying liquidity in a pool
+    /// @dev This hook callback is invoked by PoolManager before modifyLiquidity
+    function beforeModifyPosition(
+        address /* owner */,
+        IPoolManager.PoolKey calldata /* key */,
+        IPoolManager.ModifyLiquidityParams calldata /* params */,
+        bytes calldata /* hookData */
+    ) external view onlyPoolManager returns (bytes4) {
+        // Extract position owner from hookData if provided
+        // In production, this would come from the actual transaction context
+        return this.beforeModifyPosition.selector;
+    }
+
+    /// @notice Called after modifying liquidity in a pool
+    /// @dev This hook callback is invoked by PoolManager after modifyLiquidity
+    function afterModifyPosition(
         address owner,
-        uint256 collateralValue,
-        uint256 debtValue
-    ) external {
-        positions[positionId] = Position({
-            owner: owner,
-            collateralValue: collateralValue,
-            debtValue: debtValue,
-            liquidated: positions[positionId].liquidated
-        });
-
-        uint256 healthFactor = _computeHealthFactor(collateralValue, debtValue);
-
-        emit PositionHealthUpdated(
-            positionId,
-            owner,
-            collateralValue,
-            debtValue,
-            healthFactor
+        IPoolManager.PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta memory /* delta */,
+        bytes calldata /* hookData */
+    ) external onlyPoolManager returns (bytes4) {
+        // Generate position ID
+        bytes32 positionId = keccak256(
+            abi.encodePacked(owner, key.currency0, key.currency1, key.fee, params.tickLower, params.tickUpper, params.salt)
         );
+
+        // Get current liquidity from pool
+        uint128 currentLiquidity = poolManager.getLiquidity(
+            key,
+            owner,
+            params.tickLower,
+            params.tickUpper,
+            params.salt
+        );
+
+        // Update or create LP position
+        LPPosition storage lpPos = lpPositions[positionId];
+        
+        if (lpPos.owner == address(0)) {
+            // New position
+            lpPos.owner = owner;
+            lpPos.poolKey = key;
+            lpPos.tickLower = params.tickLower;
+            lpPos.tickUpper = params.tickUpper;
+            lpPos.salt = params.salt;
+        }
+
+        lpPos.liquidity = currentLiquidity;
+        
+        // Calculate collateral value based on liquidity and current price
+        uint256 collateralValue = _calculateCollateralValue(key, currentLiquidity, params.tickLower, params.tickUpper);
+        lpPos.collateralValue = collateralValue;
+
+        // If this position is used as collateral, update lending protocol
+        if (lpPos.lendingPositionId != bytes32(0)) {
+            lending.updateCollateralValue(lpPos.lendingPositionId, collateralValue);
+            
+            // Get debt value from lending protocol
+            ReQuardLending.Position memory lendingPos = lending.getPosition(lpPos.lendingPositionId);
+            uint256 healthFactor = lending.getHealthFactor(lpPos.lendingPositionId);
+
+            emit PositionHealthUpdated(
+                lpPos.lendingPositionId,
+                owner,
+                collateralValue,
+                lendingPos.borrowedAmount,
+                healthFactor
+            );
+        }
+
+        emit LPPositionModified(positionId, owner, currentLiquidity, collateralValue);
+
+        return this.afterModifyPosition.selector;
+    }
+
+    /// @notice Register an LP position as collateral for a lending position
+    function registerCollateral(
+        bytes32 lpPositionId,
+        bytes32 lendingPositionId
+    ) external {
+        LPPosition storage lpPos = lpPositions[lpPositionId];
+        require(lpPos.owner == msg.sender, "not owner");
+        require(lpPos.lendingPositionId == bytes32(0), "already registered");
+        require(!lpPos.liquidated, "position liquidated");
+
+        lpPos.lendingPositionId = lendingPositionId;
+
+        // Update lending protocol with initial collateral value
+        lending.updateCollateralValue(lendingPositionId, lpPos.collateralValue);
     }
 
     /// @notice Called by the destination executor when the Reactive Contract
     ///         decides that a position must be liquidated.
     /// @param positionId The identifier of the LP-backed collateral position.
-    /// @dev For the purposes of this repo we stub the actual AMM + lending
-    ///      interactions and simply mark the position as liquidated and
-    ///      emit an event that would conceptually redistribute fees to LPs.
     function liquidatePosition(bytes32 positionId)
         external
         onlyLiquidationExecutor
     {
-        Position storage pos = positions[positionId];
-        require(!pos.liquidated, "already liquidated");
-        require(pos.owner != address(0), "unknown position");
+        LPPosition storage lpPos = lpPositions[positionId];
+        require(!lpPos.liquidated, "already liquidated");
+        require(lpPos.owner != address(0), "unknown position");
+        require(lpPos.lendingPositionId != bytes32(0), "not collateralized");
 
-        // In a real implementation, this function would:
-        //  1. Unwind the LP position in the Uniswap V4 pool.
-        //  2. Use the proceeds to repay the associated debt.
-        //  3. Capture a liquidation fee that can be routed back to LPs.
+        // Liquidate the lending position
+        (uint256 repaidDebt, uint256 liquidationFee) = lending.liquidatePosition(lpPos.lendingPositionId);
 
-        uint256 repaidDebt = pos.debtValue;
-        uint256 remainingCollateral = 0;
-        uint256 liquidationFee = (pos.collateralValue * 5) / 1000; // e.g. 0.5%
+        // Unwind the LP position
+        uint256 remainingCollateral = _unwindLPPosition(lpPos);
 
-        pos.liquidated = true;
-        pos.collateralValue = remainingCollateral;
-        pos.debtValue = 0;
+        // Calculate liquidation fee (additional fee on top of lending protocol fee)
+        uint256 hookLiquidationFee = (lpPos.collateralValue * LIQUIDATION_FEE_BPS) / 10000;
+        accumulatedFees += hookLiquidationFee;
+
+        lpPos.liquidated = true;
+        lpPos.liquidity = 0;
+        lpPos.collateralValue = 0;
 
         emit PositionLiquidated(
             positionId,
-            pos.owner,
+            lpPos.owner,
             repaidDebt,
             remainingCollateral,
-            liquidationFee
+            liquidationFee + hookLiquidationFee
         );
     }
 
-    /// @dev Simple placeholder health factor computation.
-    ///      In practice, health factor may depend on oracle prices, risk
-    ///      parameters, etc.
+    /// @notice Distribute accumulated liquidation fees to active LPs
+    /// @dev This is a simplified version - in production, you'd track LP shares
+    function distributeFeesToLPs(address token, uint256 amount) external {
+        require(accumulatedFees >= amount, "insufficient fees");
+        accumulatedFees -= amount;
+        
+        // In production, this would distribute proportionally to active LPs
+        // For now, we'll just allow manual distribution
+        IERC20(token).transfer(msg.sender, amount);
+    }
+
+    /// @dev Calculate collateral value of an LP position
+    /// @dev Simplified calculation - in production, use oracle prices
+    function _calculateCollateralValue(
+        IPoolManager.PoolKey memory /* key */,
+        uint128 liquidity,
+        int24 /* tickLower */,
+        int24 /* tickUpper */
+    ) internal pure returns (uint256) {
+        // Simplified value calculation based on liquidity and price range
+        // In production, use proper Uniswap V4 math libraries and oracle prices
+        if (liquidity == 0) return 0;
+        
+        // This is a placeholder - real implementation would use TickMath and LiquidityMath
+        // For now, return a value proportional to liquidity
+        return uint256(liquidity) * 1e10; // Simplified: liquidity * scaling factor
+    }
+
+    /// @dev Unwind an LP position by removing all liquidity
+    function _unwindLPPosition(LPPosition memory lpPos) internal returns (uint256) {
+        // Create modify liquidity params to remove all liquidity
+        IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
+            tickLower: lpPos.tickLower,
+            tickUpper: lpPos.tickUpper,
+            liquidityDelta: -int256(uint256(lpPos.liquidity)),
+            salt: lpPos.salt
+        });
+
+        // Remove liquidity from pool
+        (int256 delta0, int256 delta1) = poolManager.modifyLiquidity(
+            lpPos.poolKey,
+            params,
+            ""
+        );
+
+        // Return the value of tokens received (simplified)
+        // In production, convert to USD using oracles
+        return uint256(delta0 > 0 ? delta0 : -delta0) + uint256(delta1 > 0 ? delta1 : -delta1);
+    }
+
+    /// @dev Compute health factor
     function _computeHealthFactor(uint256 collateralValue, uint256 debtValue)
         internal
         pure
@@ -135,4 +299,3 @@ contract ReQuardHook {
         return (collateralValue * 1e18) / debtValue;
     }
 }
-
