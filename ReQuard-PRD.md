@@ -4,7 +4,7 @@ Reactive Contracts are the key differentiator here — they let you trigger on-c
 
 ---
 
-## 1. 🔴 ReactiveGuardian — Autonomous MEV-Triggered Liquidation Hook
+## 1. 🔴 ReGuard — Autonomous MEV-Triggered Liquidation Hook
 
 **Novelty:**  
 Liquidation hooks exist conceptually, but nobody has built one that self-triggers via Reactive Contracts without requiring a keeper bot.
