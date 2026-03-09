@@ -27,12 +27,14 @@ contract ReQuardReactive {
     );
 
     /// @notice Origin chain identifier where the Uniswap V4 hook lives.
+    /// @dev Base Sepolia testnet chain ID: 84531
     uint64 public immutable originChainId;
 
     /// @notice Destination chain identifier where the `ReQuardDestination`
     ///         contract is deployed. In many cases this will equal the
     ///         origin chain ID, but we keep them separate to allow
     ///         cross-chain variants.
+    /// @dev Base Sepolia testnet chain ID: 84531
     uint64 public immutable destinationChainId;
 
     /// @notice Address of the destination contract that receives callbacks
@@ -42,10 +44,12 @@ contract ReQuardReactive {
     /// @notice Minimum acceptable health factor. If a position's health
     ///         factor falls below this threshold, a liquidation callback
     ///         is emitted.
+    /// @dev Recommended: 1.2e18 (120%) - positions below this will be liquidated
     uint256 public immutable minHealthFactor;
 
     /// @notice Gas limit hint for the callback execution on the destination
     ///         chain.
+    /// @dev Recommended: 500000 gas for LP unwinding + liquidation operations
     uint64 public immutable callbackGasLimit;
 
     constructor(
