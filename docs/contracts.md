@@ -316,3 +316,5 @@ All (0) contracts were verified!
 Transactions saved to: /home/admin/Desktop/dev/ReQuard/broadcast/Deploy.s.sol/84532/run-latest.json
 
 Sensitive values saved to: /home/admin/Desktop/dev/ReQuard/cache/Deploy.s.sol/84532/run-latest.json
+
+Reactive_Contract_Address=0xFFa3A0Ea10FE30a5d7c0F1B5597c189A38364E67
