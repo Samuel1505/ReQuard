@@ -26,7 +26,7 @@ contract DeployScript is Script {
     address constant DEBT_TOKEN = address(0x0987654321098765432109876543210987654321); // Update with actual token
     
     // PoolManager address on Base Sepolia (update with actual Uniswap V4 PoolManager)
-    address constant POOL_MANAGER = address(0x1111111111111111111111111111111111111111); // Update with actual PoolManager
+    address constant POOL_MANAGER = address(0x000000000004444c5dc75cB358380D2e3dE08A90); // Update with actual PoolManager
     
     // Reactive VM address (will be provided by Reactive Network after deployment)
     // This should be set after deploying the Reactive contract
