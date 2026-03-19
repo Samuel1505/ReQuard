@@ -20,10 +20,7 @@ contract ReQuardReactive {
     ///      Network demos. The Reactive infrastructure listens for this
     ///      event and submits the encoded call to the destination chain.
     event Callback(
-        uint64 indexed destinationChainId,
-        address indexed destinationContract,
-        uint64 gasLimit,
-        bytes payload
+        uint64 indexed destinationChainId, address indexed destinationContract, uint64 gasLimit, bytes payload
     );
 
     /// @notice Origin chain identifier where the Uniswap V4 hook lives.
@@ -111,12 +108,7 @@ contract ReQuardReactive {
             positionId
         );
 
-        emit Callback(
-            destinationChainId,
-            destinationContract,
-            callbackGasLimit,
-            payload
-        );
+        emit Callback(destinationChainId, destinationContract, callbackGasLimit, payload);
     }
 
     // --- Funding helpers (stubs) ------------------------------------------------

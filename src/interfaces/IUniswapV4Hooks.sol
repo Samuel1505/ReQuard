@@ -33,29 +33,23 @@ interface IPoolManager {
         uint160 sqrtPriceLimitX96;
     }
 
-    function modifyLiquidity(
-        PoolKey memory key,
-        ModifyLiquidityParams memory params,
-        bytes calldata hookData
-    ) external returns (int256, int256);
+    function modifyLiquidity(PoolKey memory key, ModifyLiquidityParams memory params, bytes calldata hookData)
+        external
+        returns (int256, int256);
 
-    function swap(
-        PoolKey memory key,
-        SwapParams memory params,
-        bytes calldata hookData
-    ) external returns (int256, int256);
+    function swap(PoolKey memory key, SwapParams memory params, bytes calldata hookData)
+        external
+        returns (int256, int256);
 
-    function getSlot0(
-        PoolKey memory key
-    ) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 hookFee);
+    function getSlot0(PoolKey memory key)
+        external
+        view
+        returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 hookFee);
 
-    function getLiquidity(
-        PoolKey memory key,
-        address owner,
-        int24 tickLower,
-        int24 tickUpper,
-        bytes32 salt
-    ) external view returns (uint128);
+    function getLiquidity(PoolKey memory key, address owner, int24 tickLower, int24 tickUpper, bytes32 salt)
+        external
+        view
+        returns (uint128);
 }
 
 /// @title ICurrencyManager

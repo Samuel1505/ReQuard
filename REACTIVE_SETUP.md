@@ -117,7 +117,7 @@ Before configuring the subscription, gather these details:
 ##### Option A: Using Reactive Network Dashboard/UI
 
 1. **Access Reactive Network Dashboard**
-   - Navigate to the Reactive Network dashboard/UI (check [Reactive Network Docs](https://dev.reactive.network/) for the current URL)
+   - Navigate to the Rc/UI (check [Reactive Network Docs](https://dev.reactive.network/) for the current URL)
    - Connect your wallet that deployed the `ReQuardReactive` contract
 
 2. **Create New Subscription**

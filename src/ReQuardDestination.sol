@@ -33,10 +33,7 @@ contract ReQuardDestination {
     ///        address. This must be present as the first parameter per
     ///        Reactive Network's ABI convention.
     /// @param positionId Identifier of the LP-backed position to liquidate.
-    function liquidate(address rvmAddress, bytes32 positionId)
-        external
-        onlyReactiveVm
-    {
+    function liquidate(address rvmAddress, bytes32 positionId) external onlyReactiveVm {
         // `rvmAddress` is not used directly in this example, but it is
         // required to satisfy the Reactive callback ABI convention.
         rvmAddress;

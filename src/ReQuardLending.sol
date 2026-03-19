@@ -34,10 +34,7 @@ contract ReQuardLending {
 
     /// @notice Emitted when a position is liquidated
     event PositionLiquidated(
-        bytes32 indexed positionId,
-        address indexed borrower,
-        uint256 repaidAmount,
-        uint256 liquidationFee
+        bytes32 indexed positionId, address indexed borrower, uint256 repaidAmount, uint256 liquidationFee
     );
 
     /// @dev Mapping from position ID to position data
@@ -93,7 +90,7 @@ contract ReQuardLending {
         require(borrower != address(0), "zero borrower");
 
         bool isNew = positions[positionId].borrower == address(0);
-        
+
         positions[positionId] = Position({
             borrower: borrower,
             lpPositionId: lpPositionId,
@@ -109,21 +106,11 @@ contract ReQuardLending {
 
         uint256 healthFactor = getHealthFactor(positionId);
 
-        emit PositionUpdated(
-            positionId,
-            borrower,
-            lpPositionId,
-            collateralValue,
-            borrowedAmount,
-            healthFactor
-        );
+        emit PositionUpdated(positionId, borrower, lpPositionId, collateralValue, borrowedAmount, healthFactor);
     }
 
     /// @notice Update collateral value for a position (called by hook when LP value changes)
-    function updateCollateralValue(
-        bytes32 positionId,
-        uint256 newCollateralValue
-    ) external {
+    function updateCollateralValue(bytes32 positionId, uint256 newCollateralValue) external {
         Position storage pos = positions[positionId];
         require(pos.borrower != address(0), "position not found");
         require(!pos.liquidated, "position liquidated");
@@ -133,12 +120,7 @@ contract ReQuardLending {
         uint256 healthFactor = getHealthFactor(positionId);
 
         emit PositionUpdated(
-            positionId,
-            pos.borrower,
-            pos.lpPositionId,
-            newCollateralValue,
-            pos.borrowedAmount,
-            healthFactor
+            positionId, pos.borrower, pos.lpPositionId, newCollateralValue, pos.borrowedAmount, healthFactor
         );
     }
 
@@ -161,17 +143,16 @@ contract ReQuardLending {
 
         emit DebtRepaid(positionId, amount);
         emit PositionUpdated(
-            positionId,
-            pos.borrower,
-            pos.lpPositionId,
-            pos.collateralValue,
-            pos.borrowedAmount,
-            healthFactor
+            positionId, pos.borrower, pos.lpPositionId, pos.collateralValue, pos.borrowedAmount, healthFactor
         );
     }
 
     /// @notice Liquidate a position (called by hook via destination contract)
-    function liquidatePosition(bytes32 positionId) external onlyLiquidator returns (uint256 repaidAmount, uint256 liquidationFee) {
+    function liquidatePosition(bytes32 positionId)
+        external
+        onlyLiquidator
+        returns (uint256 repaidAmount, uint256 liquidationFee)
+    {
         Position storage pos = positions[positionId];
         require(pos.borrower != address(0), "position not found");
         require(!pos.liquidated, "already liquidated");

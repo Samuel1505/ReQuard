@@ -12,33 +12,33 @@ contract DeployReactiveScript is Script {
     // Chain IDs
     uint64 constant BASE_SEPOLIA_CHAIN_ID = 84531;
     uint64 constant REACTIVE_LASNA_CHAIN_ID = 5318007;
-    
+
     // Default configuration parameters
     // These can be overridden via environment variables
     uint256 constant DEFAULT_MIN_HEALTH_FACTOR = 1.2e18; // 120%
     uint64 constant DEFAULT_CALLBACK_GAS_LIMIT = 500000;
-    
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
+
         console.log("========================================");
         console.log("Deploying ReQuardReactive to Reactive Network");
         console.log("========================================");
         console.log("Deployer address:", deployer);
         console.log("Chain ID:", REACTIVE_LASNA_CHAIN_ID);
         console.log("");
-        
+
         // Get configuration from environment variables or use defaults
         uint64 originChainId = uint64(vm.envOr("ORIGIN_CHAIN_ID", uint256(BASE_SEPOLIA_CHAIN_ID)));
         uint64 destinationChainId = uint64(vm.envOr("DESTINATION_CHAIN_ID", uint256(BASE_SEPOLIA_CHAIN_ID)));
-        
+
         // Destination contract address is required
         address destinationContract = vm.envAddress("DESTINATION_CONTRACT");
-        
+
         uint256 minHealthFactor = vm.envOr("MIN_HEALTH_FACTOR", DEFAULT_MIN_HEALTH_FACTOR);
         uint64 callbackGasLimit = uint64(vm.envOr("CALLBACK_GAS_LIMIT", uint256(DEFAULT_CALLBACK_GAS_LIMIT)));
-        
+
         console.log("Configuration:");
         console.log("  Origin Chain ID:", originChainId);
         console.log("  Destination Chain ID:", destinationChainId);
@@ -46,26 +46,22 @@ contract DeployReactiveScript is Script {
         console.log("  Min Health Factor:", minHealthFactor);
         console.log("  Callback Gas Limit:", callbackGasLimit);
         console.log("");
-        
+
         // Validate configuration
         require(destinationContract != address(0), "DESTINATION_CONTRACT cannot be zero address");
         require(minHealthFactor > 1e18, "MIN_HEALTH_FACTOR must be greater than 100% (1e18)");
         require(callbackGasLimit > 0, "CALLBACK_GAS_LIMIT must be greater than 0");
-        
+
         console.log("Deploying ReQuardReactive...");
-        
+
         vm.startBroadcast(deployerPrivateKey);
-        
+
         ReQuardReactive reactive = new ReQuardReactive(
-            originChainId,
-            destinationChainId,
-            destinationContract,
-            minHealthFactor,
-            callbackGasLimit
+            originChainId, destinationChainId, destinationContract, minHealthFactor, callbackGasLimit
         );
-        
+
         vm.stopBroadcast();
-        
+
         console.log("");
         console.log("========================================");
         console.log("Deployment Successful!");
