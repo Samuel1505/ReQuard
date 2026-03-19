@@ -38,6 +38,54 @@ ReQuard combines:
    - Emits `Callback` events to trigger liquidations
    - Implements correct Reactive Network patterns
 
+## Reactive Network Integration (Detailed)
+
+Reactive Network is the automation layer that turns hook-emitted health signals into cross-chain liquidation transactions.
+
+### Origin chain signal: `ReQuardHook` emits health
+
+Whenever a registered collateral LP position changes (via a Uniswap V4 pool action), `ReQuardHook.afterModifyPosition(...)` updates internal LP state and, if the LP is linked to a lending position, emits:
+
+- `PositionHealthUpdated(bytes32 indexed positionId, address indexed owner, uint256 collateralValue, uint256 debtValue, uint256 healthFactor)`
+
+### Reactive subscription: watch `PositionHealthUpdated`
+
+On Reactive Network, you create a subscription that monitors `ReQuardHook` on Base Sepolia for `PositionHealthUpdated` events. When an event is observed, Reactive Network calls your Reactive contract handler:
+
+- `ReQuardReactive.onPositionHealthUpdated(bytes32,address,uint256,uint256,uint256)`
+
+### Handler decision: emit `Callback` only when unhealthy
+
+`ReQuardReactive` compares `healthFactor` against `minHealthFactor`:
+
+- If `healthFactor >= minHealthFactor`: it returns without emitting anything.
+- If `healthFactor < minHealthFactor`: it emits:
+  - `Callback(destinationChainId, destinationContract, callbackGasLimit, payload)`
+
+The emitted callback payload encodes the destination call:
+
+- `abi.encodeWithSignature("liquidate(address,bytes32)", address(0), positionId)`
+
+The first `address` argument is reserved for Reactive Network ABI conventions (Reactive Network overwrites it at execution time).
+
+### Destination execution: validate Reactive VM, then call the hook
+
+`ReQuardDestination` receives the callback via:
+
+- `liquidate(address rvmAddress, bytes32 positionId)`
+
+The destination enforces access control using:
+
+- `onlyReactiveVm` (it checks `msg.sender == reactiveVm`)
+
+After validation it calls:
+
+- `hook.liquidatePosition(positionId)`
+
+### Setup instructions
+
+For subscription topic hashes, required handler signature checks, and operational troubleshooting, see `REACTIVE_SETUP.md`.
+
 ## Features
 
 - ✅ **Autonomous Liquidations** - No keeper bots required
@@ -62,7 +110,7 @@ forge build
 
 ### Deploy
 
-1. Configure environment variables (see `.env.example`)
+1. Configure environment variables used by the scripts (`PRIVATE_KEY`, and for Reactive deployment `DESTINATION_CONTRACT`, plus optional overrides for chain ids and thresholds).
 
 2. Deploy contracts on Base Sepolia:
 ```bash
@@ -106,20 +154,26 @@ ReQuard-PRD.md                  # Product requirements document
 
 ## How It Works
 
-1. **User creates LP position** in a Uniswap V4 pool with ReQuard hook
-2. **User registers LP as collateral** in ReQuardLending and borrows
-3. **Hook emits PositionHealthUpdated** event whenever position changes
-4. **Reactive Contract monitors** events via Reactive Network subscription
-5. **When health factor < threshold**, Reactive Contract emits Callback
-6. **Destination contract receives callback** and calls hook's liquidation
-7. **Hook unwinds LP position** and repays debt automatically
-8. **Liquidation fees** are captured and redistributed to LPs
+1. A pool action triggers `ReQuardHook.afterModifyPosition(...)` (Uniswap V4 hook callback).
+2. If the LP position has been registered as collateral in `ReQuardLending`, the hook emits `PositionHealthUpdated(...)`.
+3. Reactive Network detects the event and calls `ReQuardReactive.onPositionHealthUpdated(...)`.
+4. `ReQuardReactive` checks `healthFactor` against `minHealthFactor`.
+5. If unhealthy, `ReQuardReactive` emits `Callback(...)` with a payload encoding `liquidate(address,bytes32)` and the `positionId`.
+6. Reactive Network executes the callback on the destination chain by calling `ReQuardDestination.liquidate(...)`.
+7. `ReQuardDestination` verifies the Reactive VM and forwards to `ReQuardHook.liquidatePosition(positionId)`.
+8. The hook liquidates via `ReQuardLending.liquidatePosition(positionId)`, unwinds LP liquidity, and accumulates liquidation fees for distribution.
 
 ## Testing
 
 ```bash
 forge test
 ```
+
+This repo includes:
+
+- Unit tests for `ReQuardReactive`, `ReQuardLending`, and `ReQuardHook`.
+- An integration test that drives the liquidation flow through `ReQuardHook -> ReQuardReactive -> ReQuardDestination -> ReQuardHook -> ReQuardLending`.
+- Fuzz tests for callback gating, health-factor math, and liquidation branching.
 
 ## Resources
 
