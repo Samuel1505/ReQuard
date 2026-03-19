@@ -43,28 +43,18 @@ contract ReQuardFuzzTest is Test {
             hooks: IHooks(address(0x999))
         });
 
-        params = IPoolManager.ModifyLiquidityParams({
-            tickLower: -120,
-            tickUpper: 120,
-            liquidityDelta: 0,
-            salt: SALT
-        });
+        params = IPoolManager.ModifyLiquidityParams({tickLower: -120, tickUpper: 120, liquidityDelta: 0, salt: SALT});
 
         // Destination address doesn't matter for this fuzz test; payload correctness is checked.
-        reactive = new ReQuardReactive(
-            ORIGIN_CHAIN_ID,
-            DEST_CHAIN_ID,
-            address(0xD00D),
-            MIN_HF,
-            CALLBACK_GAS_LIMIT
-        );
+        reactive = new ReQuardReactive(ORIGIN_CHAIN_ID, DEST_CHAIN_ID, address(0xD00D), MIN_HF, CALLBACK_GAS_LIMIT);
     }
 
     function _positionId(address owner) internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(owner, key.currency0, key.currency1, key.fee, params.tickLower, params.tickUpper, params.salt)
-            );
+        return keccak256(
+            abi.encodePacked(
+                owner, key.currency0, key.currency1, key.fee, params.tickLower, params.tickUpper, params.salt
+            )
+        );
     }
 
     function testFuzz_reactiveCallbackEmitsOnlyWhenBelowMin(uint256 healthFactor) public {
@@ -113,7 +103,9 @@ contract ReQuardFuzzTest is Test {
         }
     }
 
-    function testFuzz_hookLiquidation_revertsOrSucceedsBasedOnHealthFactor(uint128 liquidity, uint256 borrowedAmount) public {
+    function testFuzz_hookLiquidation_revertsOrSucceedsBasedOnHealthFactor(uint128 liquidity, uint256 borrowedAmount)
+        public
+    {
         vm.assume(liquidity > 0);
         liquidity = uint128(bound(uint256(liquidity), 1, 1e18));
         borrowedAmount = bound(borrowedAmount, 0, 1e28);
@@ -152,7 +144,7 @@ contract ReQuardFuzzTest is Test {
             vm.prank(EXECUTOR);
             hook.liquidatePosition(lpPositionId);
 
-            (, , , , uint128 liquidityStored, , uint256 collateralStored, , bool liquidated) = hook.lpPositions(lpPositionId);
+            (,,,, uint128 liquidityStored,, uint256 collateralStored,, bool liquidated) = hook.lpPositions(lpPositionId);
             assertEq(liquidated, true);
             assertEq(liquidityStored, 0);
             assertEq(collateralStored, 0);

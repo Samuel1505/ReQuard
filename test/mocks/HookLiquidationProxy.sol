@@ -22,7 +22,7 @@ contract HookLiquidationProxy {
     function liquidatePosition(bytes32 positionId) external {
         address t = target;
         require(t != address(0), "target not set");
-        (bool ok, ) = t.call(abi.encodeWithSignature("liquidatePosition(bytes32)", positionId));
+        (bool ok,) = t.call(abi.encodeWithSignature("liquidatePosition(bytes32)", positionId));
         require(ok, "forward failed");
     }
 }

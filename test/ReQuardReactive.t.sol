@@ -38,8 +38,7 @@ contract ReQuardReactiveTest is Test {
         bytes32 positionId = keccak256("position-1");
         uint256 healthFactor = MIN_HF - 1;
 
-        bytes memory expectedPayload =
-            abi.encodeWithSignature("liquidate(address,bytes32)", address(0), positionId);
+        bytes memory expectedPayload = abi.encodeWithSignature("liquidate(address,bytes32)", address(0), positionId);
 
         vm.expectEmit(true, true, true, true);
         emit ReQuardReactive.Callback(DEST_CHAIN_ID, destinationContract, GAS_LIMIT, expectedPayload);

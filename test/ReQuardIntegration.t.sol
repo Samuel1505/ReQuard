@@ -69,15 +69,11 @@ contract ReQuardIntegrationTest is Test {
     }
 
     function _positionId(address owner) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            owner,
-            key.currency0,
-            key.currency1,
-            key.fee,
-            params.tickLower,
-            params.tickUpper,
-            params.salt
-        ));
+        return keccak256(
+            abi.encodePacked(
+                owner, key.currency0, key.currency1, key.fee, params.tickLower, params.tickUpper, params.salt
+            )
+        );
     }
 
     function test_endToEnd_liquidationTriggeredByReactiveCallback() public {
@@ -124,7 +120,9 @@ contract ReQuardIntegrationTest is Test {
         vm.expectEmit(true, true, true, true);
         emit ReQuardReactive.Callback(DEST_CHAIN_ID, address(destination), CALLBACK_GAS_LIMIT, expectedPayload);
 
-        reactive.onPositionHealthUpdated(expectedPositionId, BORROWER, collateralValueUnsafe, borrowedAmount, healthFactor);
+        reactive.onPositionHealthUpdated(
+            expectedPositionId, BORROWER, collateralValueUnsafe, borrowedAmount, healthFactor
+        );
 
         // 5) Simulate Reactive Network executing destination callback from the reactive VM.
         // We don't need to parse payload; destination expects the reserved RVM address slot.
@@ -133,12 +131,8 @@ contract ReQuardIntegrationTest is Test {
 
         // 6) Verify end-to-end liquidation effects.
         (
-            address ownerStored,
-            ,
-            ,
-            ,
-            uint128 liquidityStored,
-            ,
+            address ownerStored,,,,
+            uint128 liquidityStored,,
             uint256 collateralStored,
             bytes32 storedLendingPositionId,
             bool liquidated

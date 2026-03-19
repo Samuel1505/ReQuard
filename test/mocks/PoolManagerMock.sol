@@ -31,46 +31,57 @@ contract PoolManagerMock is IPoolManager {
         nextDelta1 = delta1;
     }
 
-    function _hash(
-        PoolKey memory key,
-        address owner,
-        int24 tickLower,
-        int24 tickUpper,
-        bytes32 salt
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    key.currency0,
-                    key.currency1,
-                    key.fee,
-                    key.tickSpacing,
-                    address(key.hooks),
-                    owner,
-                    tickLower,
-                    tickUpper,
-                    salt
-                )
-            );
+    function _hash(PoolKey memory key, address owner, int24 tickLower, int24 tickUpper, bytes32 salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encode(
+                key.currency0,
+                key.currency1,
+                key.fee,
+                key.tickSpacing,
+                address(key.hooks),
+                owner,
+                tickLower,
+                tickUpper,
+                salt
+            )
+        );
     }
 
     function modifyLiquidity(
-        PoolKey memory /* key */,
-        ModifyLiquidityParams memory /* params */,
+        PoolKey memory,
+        /* key */
+        ModifyLiquidityParams memory,
+        /* params */
         bytes calldata /* hookData */
-    ) external override returns (int256, int256) {
+    )
+        external
+        override
+        returns (int256, int256)
+    {
         return (nextDelta0, nextDelta1);
     }
 
     function swap(
-        PoolKey memory /* key */,
-        SwapParams memory /* params */,
+        PoolKey memory,
+        /* key */
+        SwapParams memory,
+        /* params */
         bytes calldata /* hookData */
-    ) external override returns (int256, int256) {
+    )
+        external
+        override
+        returns (int256, int256)
+    {
         revert("swap not implemented");
     }
 
-    function getSlot0(PoolKey memory /* key */)
+    function getSlot0(
+        PoolKey memory /* key */
+    )
         external
         pure
         override
@@ -82,13 +93,12 @@ contract PoolManagerMock is IPoolManager {
         hookFee = 0;
     }
 
-    function getLiquidity(
-        PoolKey memory key,
-        address owner,
-        int24 tickLower,
-        int24 tickUpper,
-        bytes32 salt
-    ) external view override returns (uint128) {
+    function getLiquidity(PoolKey memory key, address owner, int24 tickLower, int24 tickUpper, bytes32 salt)
+        external
+        view
+        override
+        returns (uint128)
+    {
         return liquidityByParams[_hash(key, owner, tickLower, tickUpper, salt)];
     }
 }

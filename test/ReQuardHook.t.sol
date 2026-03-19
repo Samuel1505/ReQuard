@@ -48,12 +48,7 @@ contract ReQuardHookTest is Test {
             hooks: IHooks(address(0x999))
         });
 
-        params = IPoolManager.ModifyLiquidityParams({
-            tickLower: -120,
-            tickUpper: 120,
-            liquidityDelta: 1000,
-            salt: salt
-        });
+        params = IPoolManager.ModifyLiquidityParams({tickLower: -120, tickUpper: 120, liquidityDelta: 1000, salt: salt});
     }
 
     function _positionId(address owner) internal view returns (bytes32) {
@@ -132,17 +127,7 @@ contract ReQuardHookTest is Test {
         vm.prank(borrower);
         hook.registerCollateral(lpPositionId, lendingPositionId);
 
-        (
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
-            uint256 collateralValue,
-            bytes32 linkedLendingPosId,
-            bool liquidated
-        ) = hook.lpPositions(lpPositionId);
+        (,,,,,, uint256 collateralValue, bytes32 linkedLendingPosId, bool liquidated) = hook.lpPositions(lpPositionId);
         assertEq(linkedLendingPosId, lendingPositionId);
         assertEq(collateralValue, expectedCollateralValue);
         assertEq(liquidated, false);
@@ -257,17 +242,8 @@ contract ReQuardHookTest is Test {
         vm.prank(executor);
         hook.liquidatePosition(lpPositionId);
 
-        (
-            address storedOwner,
-            ,
-            ,
-            ,
-            uint128 storedLiquidity,
-            ,
-            uint256 storedCollateralValue,
-            ,
-            bool storedLiquidated
-        ) = hook.lpPositions(lpPositionId);
+        (address storedOwner,,,, uint128 storedLiquidity,, uint256 storedCollateralValue,, bool storedLiquidated) =
+            hook.lpPositions(lpPositionId);
 
         assertEq(storedOwner, borrower);
         assertEq(storedLiquidity, 0);
